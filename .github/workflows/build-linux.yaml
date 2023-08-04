@@ -76,7 +76,6 @@ jobs:
       - uses: geekyeggo/delete-artifact@v2
         with:
           name: lanterndb-package
-        - name: release
       - name: Create GitHub release
         uses: softprops/action-gh-release@v1
         id: create_release
