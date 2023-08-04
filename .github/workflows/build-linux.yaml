@@ -81,6 +81,6 @@ jobs:
         id: create_release
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.create_release }}
         with:
-          release_name: ${{ steps.package.outputs.package_version }}
+          tag_name: ${{ steps.package.outputs.package_version }}
           files: ${{ steps.package.outputs.package_path }}
           body_path: CHANGELOG.md
