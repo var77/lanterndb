@@ -10,7 +10,7 @@ on:
       - dev
   workflow_dispatch:
     inputs:
-      release_version:
+      create_release:
         type: boolean
         description: "Create GitHub release for current version"
         required: false
@@ -79,7 +79,7 @@ jobs:
       - name: Create GitHub release
         uses: softprops/action-gh-release@v1
         id: create_release
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.release_version }}
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.create_release }}
         with:
           release_name: ${{ steps.package.outputs.package_version }}
           files: ${{ steps.package.outputs.package_path }}
