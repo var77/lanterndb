@@ -27,7 +27,7 @@ jobs:
 
       - name: Run benchmarking
         id: test
-        run: sudo su postgres -c "./ci/scripts/run-benchmarks.sh"
+        run: sudo su postgres -c "GITHUB_TOKEN=$GITHUB_TOKEN BASE_REF=$BASE_REF ./ci/scripts/run-benchmarks.sh"
         env:
           BASE_REF: ${{ github.base_ref }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -38,3 +38,21 @@ jobs:
           name: benchmark-results
           path: |
             /tmp/benchmarks-out.json
+
+      - name: Find Comment
+        uses: peter-evans/find-comment@v2
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+        id: fc
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-author: "github-actions[bot]"
+          body-includes: Benchmarks
+
+      - name: Comment on PR
+        uses: peter-evans/create-or-update-comment@v3
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-id: ${{ steps.fc.outputs.comment-id }}
+          body-path: /tmp/benchmarks-out.md
+          edit-mode: replace

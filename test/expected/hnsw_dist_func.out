@@ -19,15 +19,15 @@ INSERT INTO small_world (id, b, v) VALUES
 CREATE TABLE small_world_l2 (id VARCHAR(3), v REAL[]);
 CREATE TABLE small_world_cos (id VARCHAR(3), v REAL[]);
 CREATE TABLE small_world_ham (id VARCHAR(3), v INTEGER[]);
-CREATE INDEX ON small_world_l2 USING hnsw (v dist_l2sq_ops) WITH (dims=3);
+CREATE INDEX ON small_world_l2 USING hnsw (v dist_l2sq_ops) WITH (dim=3);
 INFO:  done init usearch index
 INFO:  inserted 0 elements
 INFO:  done saving 0 vectors
-CREATE INDEX ON small_world_cos USING hnsw (v dist_cos_ops) WITH (dims=3);
+CREATE INDEX ON small_world_cos USING hnsw (v dist_cos_ops) WITH (dim=3);
 INFO:  done init usearch index
 INFO:  inserted 0 elements
 INFO:  done saving 0 vectors
-CREATE INDEX ON small_world_ham USING hnsw (v dist_hamming_ops) WITH (dims=3);
+CREATE INDEX ON small_world_ham USING hnsw (v dist_hamming_ops) WITH (dim=3);
 INFO:  done init usearch index
 INFO:  inserted 0 elements
 INFO:  done saving 0 vectors
@@ -37,9 +37,6 @@ INSERT INTO small_world_ham SELECT id, v FROM small_world;
 SET enable_seqscan = false;
 -- Verify that the distance functions work (check distances)
 SELECT ROUND(l2sq_dist(v, '{0,1,0}')::numeric, 2) FROM small_world_l2 ORDER BY v <-> '{0,1,0}';
-INFO:  began scanning with 0 keys and 1 orderbys
-INFO:  starting scan with dimensions=3 M=16 efConstruction=128 ef=64
-INFO:  usearch index initialized
  round 
 -------
   0.00
@@ -53,9 +50,6 @@ INFO:  usearch index initialized
 (8 rows)
 
 SELECT ROUND(cos_dist(v, '{0,1,0}')::numeric, 2) FROM small_world_cos ORDER BY v <-> '{0,1,0}';
-INFO:  began scanning with 0 keys and 1 orderbys
-INFO:  starting scan with dimensions=3 M=16 efConstruction=128 ef=64
-INFO:  usearch index initialized
  round 
 -------
   0.00
@@ -69,9 +63,6 @@ INFO:  usearch index initialized
 (8 rows)
 
 SELECT ROUND(hamming_dist(v, '{0,1,0}')::numeric, 2) FROM small_world_ham ORDER BY v <-> '{0,1,0}';
-INFO:  began scanning with 0 keys and 1 orderbys
-INFO:  starting scan with dimensions=3 M=16 efConstruction=128 ef=64
-INFO:  usearch index initialized
  round 
 -------
   0.00
@@ -137,19 +128,10 @@ EXPLAIN SELECT id FROM small_world_ham ORDER BY v <-> '{0,1,0}';
 \set ON_ERROR_STOP off
 -- Expect errors due to mismatching vector dimensions
 SELECT 1 FROM small_world_l2 ORDER BY v <-> '{0,1,0,1}' LIMIT 1;
-INFO:  began scanning with 0 keys and 1 orderbys
-INFO:  starting scan with dimensions=3 M=16 efConstruction=128 ef=64
-INFO:  usearch index initialized
 ERROR:  Expected real array with dimension 3, got 4
 SELECT 1 FROM small_world_cos ORDER BY v <-> '{0,1,0,1}' LIMIT 1;
-INFO:  began scanning with 0 keys and 1 orderbys
-INFO:  starting scan with dimensions=3 M=16 efConstruction=128 ef=64
-INFO:  usearch index initialized
 ERROR:  Expected real array with dimension 3, got 4
 SELECT 1 FROM small_world_ham ORDER BY v <-> '{0,1,0,1}' LIMIT 1;
-INFO:  began scanning with 0 keys and 1 orderbys
-INFO:  starting scan with dimensions=3 M=16 efConstruction=128 ef=64
-INFO:  usearch index initialized
 ERROR:  Expected int array with dimension 3, got 4
 SELECT l2sq_dist('{1,1}', '{0,1,0}');
 ERROR:  expected equally sized arrays but got arrays with dimensions 2 and 3
@@ -170,12 +152,6 @@ CREATE TABLE test2 (id SERIAL, v REAL[]);
 INSERT INTO test1 (v) VALUES ('{5,3}');
 INSERT INTO test2 (v) VALUES ('{5,4}');
 -- Expect success
-SELECT COALESCE(id, 0) FROM test1 ORDER BY v <-> '{1,2}';
- coalesce 
-----------
-        1
-(1 row)
-
 SELECT 0 + 1;
  ?column? 
 ----------
@@ -188,13 +164,7 @@ SELECT 1 FROM test1 WHERE id = 0 + 1;
         1
 (1 row)
 
-SELECT 1 FROM test1 ORDER BY v <-> (SELECT '{1,3}'::real[]);
- ?column? 
-----------
-        1
-(1 row)
-
--- Expect errors
+-- Expect errors due to incorrect usage
 INSERT INTO test1 (v) VALUES (ARRAY['{1,2}'::REAL[] <-> '{4,2}'::REAL[], 0]);
 ERROR:  Operator <-> has no standalone meaning and is reserved for use in vector index lookups only
 SELECT v <-> '{1,2}' FROM test1 ORDER BY v <-> '{1,3}';
@@ -234,4 +204,19 @@ ERROR:  Operator <-> has no standalone meaning and is reserved for use in vector
 SELECT 1 FROM test1 ORDER BY (('{1,2}'::real[] <-> '{3,4}'::real[]) - 0);
 ERROR:  Operator <-> has no standalone meaning and is reserved for use in vector index lookups only
 SELECT 1 FROM test1 ORDER BY '{1,2}'::REAL[] <-> '{3,4}'::REAL[];
+ERROR:  Operator <-> has no standalone meaning and is reserved for use in vector index lookups only
+SELECT 1 FROM test1 ORDER BY v <-> ARRAY[(SELECT '{1,4}'::REAL[] <-> '{4,2}'::REAL[]), 3];
+ERROR:  Operator <-> has no standalone meaning and is reserved for use in vector index lookups only
+-- Expect errors due to index not existing
+SELECT id FROM test1 ORDER BY v <-> '{1,2}';
+ERROR:  Operator <-> has no standalone meaning and is reserved for use in vector index lookups only
+SELECT 1 FROM test1 ORDER BY v <-> (SELECT '{1,3}'::real[]);
+ERROR:  Operator <-> has no standalone meaning and is reserved for use in vector index lookups only
+SELECT t2_results.id FROM test1 t1 JOIN LATERAL (SELECT t2.id FROM test2 t2 ORDER BY t1.v <-> t2.v LIMIT 1) t2_results ON TRUE;
+ERROR:  Operator <-> has no standalone meaning and is reserved for use in vector index lookups only
+WITH t AS (SELECT id FROM test1 ORDER BY v <-> '{1,2}' LIMIT 1) SELECT DISTINCT id FROM t;
+ERROR:  Operator <-> has no standalone meaning and is reserved for use in vector index lookups only
+WITH t AS (SELECT id FROM test1 ORDER BY v <-> '{1,2}' LIMIT 1) SELECT id, COUNT(*) FROM t GROUP BY 1;
+ERROR:  Operator <-> has no standalone meaning and is reserved for use in vector index lookups only
+WITH t AS (SELECT id FROM test1 ORDER BY v <-> '{1,2}') SELECT id FROM t UNION SELECT id FROM t;
 ERROR:  Operator <-> has no standalone meaning and is reserved for use in vector index lookups only

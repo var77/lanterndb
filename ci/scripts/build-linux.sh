@@ -30,7 +30,7 @@ function setup_postgres() {
   apt install -y postgresql-$PG_VERSION postgresql-server-dev-$PG_VERSION
   # Install pgvector
   pushd /tmp
-    PGVECTOR_VERSION=0.4.4
+    PGVECTOR_VERSION=0.5.0
     wget -O pgvector.tar.gz https://github.com/pgvector/pgvector/archive/refs/tags/v${PGVECTOR_VERSION}.tar.gz
     tar xzf pgvector.tar.gz
     pushd pgvector-${PGVECTOR_VERSION}
@@ -45,22 +45,24 @@ function clone_or_use_source() {
   if [ -z ${USE_SOURCE} ]; then
     # Clone from git
     cd /tmp
-    git clone --recursive https://github.com/lanterndata/lanterndb.git -b $BRANCH
+    git clone --recursive https://github.com/lanterndata/lantern.git -b $BRANCH
   else 
     # Use already checkouted code
     shopt -s dotglob
-    mkdir -p /tmp/lanterndb
-    cp -r ./* /tmp/lanterndb/
+    mkdir -p /tmp/lantern
+    cp -r ./* /tmp/lantern/
   fi
 }
 
 function build_and_install() {
-  cd /tmp/lanterndb
+  cd /tmp/lantern
   mkdir build
   cd build
 
    # TODO:: remove after test
   flags="-DUSEARCH_NO_MARCH_NATIVE=ON"
+  # Treat warnings as errors in CI/CD
+  flags+=" -DCMAKE_COMPILE_WARNING_AS_ERROR=ON"
   # if [[ $ARCH == *"arm"* ]]; then
   #   echo "-DUSEARCH_NO_MARCH_NATIVE=ON"
   # fi
@@ -80,7 +82,7 @@ function package_if_necessary() {
     cpack &&
     # Print package name to github output
     export EXT_VERSION=$(cmake --system-information | awk -F= '$1~/CMAKE_PROJECT_VERSION:STATIC/{print$2}') && \
-    export PACKAGE_NAME=lanterndb-${EXT_VERSION}-postgres-${PG_VERSION}-${ARCH}.deb && \
+    export PACKAGE_NAME=lantern-${EXT_VERSION}-postgres-${PG_VERSION}-${ARCH}.deb && \
 
     echo "package_version=$EXT_VERSION" >> "$GITHUB_OUTPUT" && \
     echo "package_name=$PACKAGE_NAME" >> "$GITHUB_OUTPUT" && \
@@ -96,4 +98,4 @@ build_and_install
 package_if_necessary
 
 # Chown to postgres for running tests
-chown -R postgres:postgres /tmp/lanterndb
+chown -R postgres:postgres /tmp/lantern

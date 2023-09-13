@@ -11,6 +11,11 @@
 #include <utils/array.h>
 #include <utils/lsyscache.h>
 #include <utils/memutils.h>
+#ifdef _WIN32
+#define access _access
+#else
+#include <unistd.h>
+#endif
 
 #include "bench.h"
 #include "external_index.h"
@@ -79,7 +84,14 @@ static void AddTupleToUsearchIndex(ItemPointer tid, Datum *values, HnswBuildStat
     if(buildstate->hnsw != NULL) hnsw_add(buildstate->hnsw, vector, label);
 #endif
 #ifdef LANTERN_USE_USEARCH
-    if(buildstate->usearch_index != NULL) usearch_add(buildstate->usearch_index, label, vector, usearch_scalar, &error);
+    if(buildstate->usearch_index != NULL) {
+        size_t capacity = usearch_capacity(buildstate->usearch_index, &error);
+        if(capacity == usearch_size(buildstate->usearch_index, &error)) {
+            usearch_reserve(buildstate->usearch_index, 2 * capacity, &error);
+            assert(error == NULL);
+        }
+        usearch_add(buildstate->usearch_index, label, vector, usearch_scalar, &error);
+    }
 #endif
     assert(error == NULL);
     buildstate->tuples_indexed++;
@@ -132,7 +144,7 @@ static int GetArrayLengthFromHeap(Relation heap, int indexCol)
     ArrayType *array;
     Datum      datum;
     bool       isNull;
-    int        n_items = HNSW_DEFAULT_DIMS;
+    int        n_items = HNSW_DEFAULT_DIM;
     //
     // Get the first row off the heap
     // if it's NULL we don't infer a length. Since vectors are expected to have fixed nonzero dimension this will result
@@ -168,13 +180,13 @@ int GetHnswIndexDimensions(Relation index)
     // check if column is type of real[] or integer[]
     if(columnType == REAL_ARRAY || columnType == INT_ARRAY) {
         // The dimension in options is not set if the dimension is inferred so we need to actually check the key
-        int opt_dim = HnswGetDims(index);
-        if(opt_dim == HNSW_DEFAULT_DIMS) {
+        int opt_dim = ldb_HnswGetDim(index);
+        if(opt_dim == HNSW_DEFAULT_DIM) {
             // If the option's still the default it needs to be updated to match what was inferred
             // todo: is there a way to do this earlier? (rd_options is null in BuildInit)
-            Relation     heap;
-            HnswOptions *opts;
-            int          attrNum;
+            Relation         heap;
+            ldb_HnswOptions *opts;
+            int              attrNum;
 
             assert(index->rd_index->indnatts == 1);
             attrNum = index->rd_index->indkey.values[ 0 ];
@@ -184,9 +196,9 @@ int GetHnswIndexDimensions(Relation index)
             heap = table_open(index->rd_index->indrelid, AccessShareLock);
 #endif
             opt_dim = GetArrayLengthFromHeap(heap, attrNum);
-            opts = (HnswOptions *)index->rd_options;
+            opts = (ldb_HnswOptions *)index->rd_options;
             if(opts != NULL) {
-                opts->dims = opt_dim;
+                opts->dim = opt_dim;
             }
 #if PG_VERSION_NUM < 120000
             heap_close(heap, AccessShareLock);
@@ -232,7 +244,7 @@ static int InferDimension(Relation heap, IndexInfo *indexInfo)
     // If NumIndexAttrs isn't 1 the index has been instantiated on multiple keys and there's no clear way to infer
     // the dim
     if(indexInfo->ii_NumIndexAttrs != 1) {
-        return HNSW_DEFAULT_DIMS;
+        return HNSW_DEFAULT_DIM;
     }
 
     indexCol = indexInfo->ii_IndexAttrNumbers[ 0 ];
@@ -249,7 +261,7 @@ static void InitBuildState(HnswBuildState *buildstate, Relation heap, Relation i
     buildstate->indexInfo = indexInfo;
     buildstate->columnType = GetIndexColumnType(index);
     buildstate->dimensions = GetHnswIndexDimensions(index);
-    buildstate->index_file_path = HnswGetIndexFilePath(index);
+    buildstate->index_file_path = ldb_HnswGetIndexFilePath(index);
 
     // If a dimension wasn't specified try to infer it
     if(buildstate->dimensions < 1) {
@@ -260,12 +272,12 @@ static void InitBuildState(HnswBuildState *buildstate, Relation heap, Relation i
 
     // not supported because of 8K page limit in postgres WAL pages
     // can pass this limit once quantization is supported
-    if(buildstate->dimensions > HNSW_MAX_DIMS)
+    if(buildstate->dimensions > HNSW_MAX_DIM)
         elog(ERROR,
              "vector dimension %d is too large. "
              "LanternDB currently supports up to %ddim vectors",
              buildstate->dimensions,
-             HNSW_MAX_DIMS);
+             HNSW_MAX_DIM);
 
     // keeps track of number of tuples added to index
     buildstate->tuples_indexed = 0;
@@ -329,6 +341,9 @@ static void BuildIndex(
 
     buildstate->hnsw = NULL;
     if(buildstate->index_file_path) {
+        if(access(buildstate->index_file_path, F_OK) != 0) {
+            ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE), errmsg("Invalid index file path ")));
+        }
         usearch_load(buildstate->usearch_index, buildstate->index_file_path, &error);
         if(error != NULL) {
             elog(ERROR, "%s", error);
@@ -343,8 +358,32 @@ static void BuildIndex(
         opts.expansion_search = metadata.expansion_search;
         opts.metric_kind = metadata.metric_kind;
     } else {
-        usearch_reserve(buildstate->usearch_index, 1100000, &error);
-        assert(error == NULL);
+        BlockNumber numBlocks = RelationGetNumberOfBlocks(heap);
+        uint32_t    estimated_row_count = 0;
+        if(numBlocks > 0) {
+            // Read the first block
+            Buffer buffer = ReadBufferExtended(heap, MAIN_FORKNUM, 0, RBM_NORMAL, NULL);
+            // Lock buffer so there won't be any new writes during this operation
+            LockBuffer(buffer, BUFFER_LOCK_SHARE);
+            // This is like converting block buffer to Page struct
+            Page page = BufferGetPage(buffer);
+            // Getting the maximum tuple index on the page
+            OffsetNumber offset = PageGetMaxOffsetNumber(page);
+
+            // Reasonably accurate first guess, assuming tuples are fixed length it will err towards over allocating.
+            // In the case of under allocation the logic in AddTupleToUsearchIndex should expand it as needed
+            estimated_row_count = offset * numBlocks;
+            // Unlock and release buffer
+            UnlockReleaseBuffer(buffer);
+        }
+        usearch_reserve(buildstate->usearch_index, estimated_row_count, &error);
+        if(error != NULL) {
+            // There's not much we can do if free throws an error, but we want to preserve the contents of the first one
+            // in case it does
+            usearch_error_t local_error = NULL;
+            usearch_free(buildstate->usearch_index, &local_error);
+            elog(ERROR, "Error reserving space for index: %s", error);
+        }
 
         UpdateProgress(PROGRESS_CREATEIDX_PHASE, PROGRESS_HNSW_PHASE_IN_MEMORY_INSERT);
         LanternBench("build hnsw index", ScanTable(buildstate));

@@ -27,7 +27,6 @@ IndexScanDesc ldb_ambeginscan(Relation index, int nkeys, int norderbys)
     usearch_init_options_t opts;
     RetrieverCtx          *retriever_ctx = ldb_wal_retriever_area_init(index, NULL);
 
-    elog(INFO, "began scanning with %d keys and %d orderbys", nkeys, norderbys);
     scan = RelationGetIndexScan(index, nkeys, norderbys);
 
     // ** initialize usearch data structures and set up external retriever
@@ -38,11 +37,7 @@ IndexScanDesc ldb_ambeginscan(Relation index, int nkeys, int norderbys)
     // index header is always at BlockNumber blockno = 0
     BlockNumber header_blockno = 0;
 
-    if(!BlockNumberIsValid(header_blockno)) {
-        elog(ERROR,
-             "usearch index not initalized and root "
-             "block not valid");
-    }
+    ldb_invariant(BlockNumberIsValid(header_blockno), "invalid hnsw header blockno");
 
     assert(scan->indexRelation == index);
     buf = ReadBuffer(scan->indexRelation, header_blockno);
@@ -69,12 +64,12 @@ IndexScanDesc ldb_ambeginscan(Relation index, int nkeys, int norderbys)
     opts.retriever = ldb_wal_index_node_retriever;
     opts.retriever_mut = ldb_wal_index_node_retriever_mut;
 
-    elog(INFO,
-         "starting scan with dimensions=%d M=%ld efConstruction=%ld ef=%ld",
-         dimensions,
-         opts.connectivity,
-         opts.expansion_add,
-         opts.expansion_search);
+    ldb_dlog(INFO,
+             "starting scan with dimensions=%d M=%ld efConstruction=%ld ef=%ld",
+             dimensions,
+             opts.connectivity,
+             opts.expansion_add,
+             opts.expansion_search);
 
     scanstate->usearch_index = usearch_init(&opts, &error);
     if(error != NULL) elog(ERROR, "error loading index: %s", error);
@@ -91,7 +86,6 @@ IndexScanDesc ldb_ambeginscan(Relation index, int nkeys, int norderbys)
     usearch_view_mem_lazy(scanstate->usearch_index, usearch_mem, &error);
     assert(error == NULL);
     UnlockReleaseBuffer(buf);
-    elog(INFO, "usearch index initialized");
 
     scan->opaque = scanstate;
     return scan;
@@ -199,8 +193,7 @@ bool ldb_amgettuple(IndexScanDesc scan, ScanDirection dir)
             scanstate->labels = palloc(k * sizeof(usearch_label_t));
         }
 
-        // hnsw_search(scanstate->hnsw, vec->x, k, &num_returned, scanstate->distances, scanstate->labels);
-        elog(DEBUG5, "LANTERN querying index for %d elements", k);
+        ldb_dlog(DEBUG5, "LANTERN querying index for %d elements", k);
         num_returned = usearch_search(
             scanstate->usearch_index, vec, usearch_scalar_f32_k, k, scanstate->labels, scanstate->distances, &error);
         ldb_wal_retriever_area_reset(scanstate->retriever_ctx, NULL);
@@ -220,8 +213,10 @@ bool ldb_amgettuple(IndexScanDesc scan, ScanDirection dir)
         float4         *vec;
         usearch_error_t error = NULL;
         int             k = scanstate->count * 2;
+        int             index_size = usearch_size(scanstate->usearch_index, &error);
+        assert(error == NULL);
 
-        if(usearch_size(scanstate->usearch_index, &error) == scanstate->current) {
+        if(index_size == scanstate->current) {
             return false;
         }
 
@@ -233,7 +228,7 @@ bool ldb_amgettuple(IndexScanDesc scan, ScanDirection dir)
         scanstate->distances = repalloc(scanstate->distances, k * sizeof(float));
         scanstate->labels = repalloc(scanstate->labels, k * sizeof(usearch_label_t));
 
-        elog(DEBUG5, "LANTERN - querying index for %d elements", k);
+        ldb_dlog(DEBUG5, "LANTERN - querying index for %d elements", k);
         num_returned = usearch_search(
             scanstate->usearch_index, vec, usearch_scalar_f32_k, k, scanstate->labels, scanstate->distances, &error);
         ldb_wal_retriever_area_reset(scanstate->retriever_ctx, NULL);
