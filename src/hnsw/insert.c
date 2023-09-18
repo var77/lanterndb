@@ -4,8 +4,10 @@
 
 #include <access/generic_xlog.h>
 #include <assert.h>
+#include <bench.h>
 #include <float.h>
 #include <storage/bufmgr.h>
+#include <time.h>
 #include <utils/array.h>
 #include <utils/rel.h>
 #include <utils/relcache.h>
@@ -35,6 +37,10 @@ bool ldb_aminsert(Relation         index,
                   ,
                   IndexInfo *indexInfo)
 {
+    instr_time start;
+    instr_time duration;
+    INSTR_TIME_SET_CURRENT(start);
+
     MemoryContext          oldCtx;
     MemoryContext          insertCtx;
     Datum                  datum;
@@ -139,8 +145,9 @@ bool ldb_aminsert(Relation         index,
     // Generic XLog supports up to 4 pages in a single commit, so we are good.
     new_tuple = PrepareIndexTuple(index, state, hdr, &meta, new_tuple_id, level, insertstate);
 
-    usearch_add_external(
-        uidx, *(unsigned long *)heap_tid, vector, new_tuple->node, usearch_scalar_f32_k, level, &error);
+    LanternBench("usearch_add_external",
+                 usearch_add_external(
+                     uidx, *(unsigned long *)heap_tid, vector, new_tuple->node, usearch_scalar_f32_k, level, &error));
     if(error != NULL) {
         elog(ERROR, "usearch insert error: %s", error);
     }
@@ -177,6 +184,10 @@ bool ldb_aminsert(Relation         index,
     MemoryContextSwitchTo(oldCtx);
 
     MemoryContextDelete(insertCtx);
+
+    INSTR_TIME_SET_CURRENT(duration);
+    INSTR_TIME_SUBTRACT(duration, start);
+    // elog(INFO, "%s: %.3f ms", "aminsert", INSTR_TIME_GET_MILLISEC(duration));
 
     // from docs at https://www.postgresql.org/docs/current/index-functions.html:
     // The function's Boolean result value is significant only when checkUnique is UNIQUE_CHECK_PARTIAL.

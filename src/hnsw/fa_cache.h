@@ -10,7 +10,7 @@
  * (CLOCK, 2 lists, etc)
  */
 
-#define FA_CACHE_SIZE 64
+#define FA_CACHE_SIZE 1
 
 typedef struct
 {
@@ -40,6 +40,9 @@ static inline void fa_cache_insert(FullyAssociativeCache* cache, int key, void* 
 // Get the value associated with the key
 static inline void* fa_cache_get(FullyAssociativeCache* cache, int key)
 {
+    // if(cache->values[ 0 ] != NULL) {
+    //     return cache->values[ 0 ];
+    // }
     for(int i = 0; i < FA_CACHE_SIZE; i++) {
         if(cache->keys[ i ] == key) {
             return cache->values[ i ];
