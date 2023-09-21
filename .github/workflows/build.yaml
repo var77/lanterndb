@@ -56,6 +56,12 @@ jobs:
       - uses: actions/checkout@v3
         with:
           submodules: "recursive"
+      - name: Create full source archive
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.create_release }}
+        run: |
+          find ./ -name '.git*' -exec rm -rv {} \; || true
+          # Create archive
+          tar -czf /tmp/source.tar.gz .
       - uses: actions/download-artifact@v3
         with:
           name: lantern-package
@@ -73,9 +79,6 @@ jobs:
       - uses: geekyeggo/delete-artifact@v2
         with:
           name: lantern-package
-      - name: Create full source archive
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.create_release }}
-        run: "git archive --format=tar.gz --output=/tmp/source.tar.gz HEAD"
       - name: Create GitHub release
         uses: softprops/action-gh-release@v1
         id: create_release
