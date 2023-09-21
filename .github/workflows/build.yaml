@@ -22,7 +22,9 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-22.04, macos-13]
-        postgres: [11, 12, 13, 14, 15, 16]
+        # os: [ubuntu-22.04, macos-13]
+        # postgres: [11, 12, 13, 14, 15, 16]
+        postgres: [15]
     steps:
       - uses: actions/checkout@v3
         with:
@@ -71,6 +73,9 @@ jobs:
       - uses: geekyeggo/delete-artifact@v2
         with:
           name: lantern-package
+      - name: Create full source archive
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.create_release }}
+        run: "git archive --format=tar.gz --output=/tmp/source.tar.gz HEAD"
       - name: Create GitHub release
         uses: softprops/action-gh-release@v1
         id: create_release
@@ -78,5 +83,7 @@ jobs:
         with:
           name: LanternDB v${{ steps.package.outputs.package_version }}
           tag_name: v${{ steps.package.outputs.package_version }}
-          files: ${{ steps.package.outputs.package_path }}
+          files: |
+            ${{ steps.package.outputs.package_path }}
+            /tmp/source.tar.gz
           generate_release_notes: true
