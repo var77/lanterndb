@@ -52,6 +52,13 @@ jobs:
     needs: [build]
     steps:
       - uses: actions/checkout@v3
+        with:
+          submodules: "recursive"
+      - name: Create source code archive with submodules
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.create_release }}
+        run: |
+          find ./ -name '.git*' -exec rm -rv {} \; || true
+          tar -czf /tmp/lantern-source.tar.gz .
       - uses: actions/download-artifact@v3
         with:
           name: lantern-package
@@ -76,5 +83,7 @@ jobs:
         with:
           name: LanternDB v${{ steps.package.outputs.package_version }}
           tag_name: v${{ steps.package.outputs.package_version }}
-          files: ${{ steps.package.outputs.package_path }}
+          files: |
+            ${{ steps.package.outputs.package_path }}
+            /tmp/lantern-source.tar.gz
           generate_release_notes: true
