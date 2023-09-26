@@ -16,19 +16,19 @@ on:
         required: false
         default: false
 jobs:
-  build:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        # os: [ubuntu-22.04, macos-13]
-        os: [ubuntu-22.04]
-        # postgres: [11, 12, 13, 14, 15, 16]
-        postgres: [15]
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          submodules: "recursive"
+  # build:
+  #   runs-on: ${{ matrix.os }}
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       # os: [ubuntu-22.04, macos-13]
+  #       os: [ubuntu-22.04]
+  #       # postgres: [11, 12, 13, 14, 15, 16]
+  #       postgres: [15]
+  #   steps:
+  #     - uses: actions/checkout@v3
+  #       with:
+  #         submodules: "recursive"
       # - name: Build
       #   id: build
       #   run: sudo sh -c "PG_VERSION=$PG_VERSION USE_SOURCE=1 GITHUB_OUTPUT=$GITHUB_OUTPUT BUILD_PACKAGES=1 ./ci/scripts/build.sh"
@@ -51,7 +51,7 @@ jobs:
       #     path: ${{ steps.archive.outputs.archive_package_path }}
   package:
     runs-on: ubuntu-22.04
-    needs: [build]
+    # needs: [build]
     steps:
       # - uses: actions/checkout@v3
       #   with:
