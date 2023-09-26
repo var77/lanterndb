@@ -90,7 +90,7 @@ jobs:
       #       /tmp/lantern-v${{ steps.package.outputs.package_version }}-source.tar.gz
       #     generate_release_notes: true
       - name: Homebrew release
-        uses: mislav/bump-homebrew-formula-action@v3
+        uses: var77/bump-homebrew-formula-action@main
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.create_release }}
         with:
           formula-name: lantern
