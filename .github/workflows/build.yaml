@@ -98,6 +98,7 @@ jobs:
           tag-name: v0.0.4
           download-url: https://github.com/var77/lantern/releases/download/v0.0.4/lantern-v0.0.4-source.tar.gz
           homebrew-tap: var77/homebrew-lantern
+          push-to: var77/homebrew-lantern
           base-branch: main
         env:
           COMMITTER_TOKEN: ${{ secrets.HOMEBREW_COMMITTER_TOKEN }}
