@@ -87,3 +87,15 @@ jobs:
             ${{ steps.package.outputs.package_path }}
             /tmp/lantern-v${{ steps.package.outputs.package_version }}-source.tar.gz
           generate_release_notes: true
+      - name: Homebrew release
+        uses: mislav/bump-homebrew-formula-action@v2
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.create_release }}
+        with:
+          formula-name: lantern
+          formula-path: Formula/lantern.rb
+          tag-name: v${{ steps.package.outputs.package_version }}
+          download-url: https://github.com/var77/lantern/releases/download/v${{steps.package.outputs.package_version}}/lantern-v${{steps.package.outputs.package_version}}-source.tar.gz
+          homebrew-tap: var77/lantern
+          base-branch: main
+        env:
+          COMMITTER_TOKEN: ${{ secrets.HOMEBREW_COMMITTER_TOKEN }}
