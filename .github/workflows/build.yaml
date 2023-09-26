@@ -29,26 +29,26 @@ jobs:
   #     - uses: actions/checkout@v3
   #       with:
   #         submodules: "recursive"
-      # - name: Build
-      #   id: build
-      #   run: sudo sh -c "PG_VERSION=$PG_VERSION USE_SOURCE=1 GITHUB_OUTPUT=$GITHUB_OUTPUT BUILD_PACKAGES=1 ./ci/scripts/build.sh"
-      #   env:
-      #     PG_VERSION: ${{ matrix.postgres }}
-      # - name: Create Archive Package
-      #   id: archive
-      #   run: sudo sh -c "GITHUB_OUTPUT=$GITHUB_OUTPUT ./ci/scripts/package-archive.sh"
-      # - name: Upload deb package artifacts
-      #   uses: actions/upload-artifact@v3
-      #   if: ${{ steps.build.outputs.deb_package_path != '' }}
-      #   with:
-      #     name: ${{ steps.build.outputs.deb_package_name }}
-      #     path: ${{ steps.build.outputs.deb_package_path }}
-      # - name: Upload archive package artifacts
-      #   uses: actions/upload-artifact@v3
-      #   if: ${{ steps.archive.outputs.archive_package_path != '' }}
-      #   with:
-      #     name: lantern-package
-      #     path: ${{ steps.archive.outputs.archive_package_path }}
+  # - name: Build
+  #   id: build
+  #   run: sudo sh -c "PG_VERSION=$PG_VERSION USE_SOURCE=1 GITHUB_OUTPUT=$GITHUB_OUTPUT BUILD_PACKAGES=1 ./ci/scripts/build.sh"
+  #   env:
+  #     PG_VERSION: ${{ matrix.postgres }}
+  # - name: Create Archive Package
+  #   id: archive
+  #   run: sudo sh -c "GITHUB_OUTPUT=$GITHUB_OUTPUT ./ci/scripts/package-archive.sh"
+  # - name: Upload deb package artifacts
+  #   uses: actions/upload-artifact@v3
+  #   if: ${{ steps.build.outputs.deb_package_path != '' }}
+  #   with:
+  #     name: ${{ steps.build.outputs.deb_package_name }}
+  #     path: ${{ steps.build.outputs.deb_package_path }}
+  # - name: Upload archive package artifacts
+  #   uses: actions/upload-artifact@v3
+  #   if: ${{ steps.archive.outputs.archive_package_path != '' }}
+  #   with:
+  #     name: lantern-package
+  #     path: ${{ steps.archive.outputs.archive_package_path }}
   package:
     runs-on: ubuntu-22.04
     # needs: [build]
@@ -90,7 +90,7 @@ jobs:
       #       /tmp/lantern-v${{ steps.package.outputs.package_version }}-source.tar.gz
       #     generate_release_notes: true
       - name: Homebrew release
-        uses: mislav/bump-homebrew-formula-action@v2
+        uses: mislav/bump-homebrew-formula-action@v3
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.create_release }}
         with:
           formula-name: lantern
@@ -98,7 +98,8 @@ jobs:
           tag-name: v0.0.4
           download-url: https://github.com/var77/lantern/releases/download/v0.0.4/lantern-v0.0.4-source.tar.gz
           homebrew-tap: var77/homebrew-lantern
-          commit-message: {{formulaName}} {{version}}
+          commit-message: |
+            {{formulaName}} {{version}}
           base-branch: main
         env:
           COMMITTER_TOKEN: ${{ secrets.HOMEBREW_COMMITTER_TOKEN }}
