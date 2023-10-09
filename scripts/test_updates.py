@@ -11,6 +11,7 @@ def update_from_tag(from_version: str, to_version: str):
     sha_before = repo.head.object.hexsha
     print("sha_before", sha_before)
     print("checkout to tag", from_tag)
+    repo.remotes[0].fetch()
     repo.git.checkout(from_tag)
     sha_after = repo.head.object.hexsha
     print("sha_after", sha_after)
@@ -25,7 +26,7 @@ def update_from_tag(from_version: str, to_version: str):
 
     res = subprocess.run(f"psql postgres -U {args.user} -c 'DROP DATABASE IF EXISTS {args.db};'", shell=True)
     res = subprocess.run(f"psql postgres -U {args.user} -c 'CREATE DATABASE {args.db};'", shell=True)
-    res = subprocess.run(f"psql postgres -c 'DROP EXTENSION IF EXISTS lantern CASCADE; CREATE EXTENSION lantern;' -d {args.db};", shell=True)
+    res = subprocess.run(f"psql postgres -U {args.user} -c 'DROP EXTENSION IF EXISTS lantern CASCADE; CREATE EXTENSION lantern;' -d {args.db};", shell=True)
     # todo:: run init() portion of parallel tests
 
     repo.git.checkout(sha_before)
