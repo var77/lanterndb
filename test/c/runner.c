@@ -186,7 +186,7 @@ int main()
 
         // Close test connection
         PQfinish(current_case_state.conn);
-        // PQfinish(root_conn);
+        PQfinish(root_conn);
         if(ENABLE_REPLICA) {
             PQfinish(current_case_state.replica_conn);
         }
