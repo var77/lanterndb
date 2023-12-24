@@ -4,10 +4,10 @@ on:
     branches:
       - main
       - dev
-  pull_request:
-    branches:
-      - main
-      - dev
+  # pull_request:
+  #   branches:
+  #     - main
+  #     - dev
   workflow_dispatch:
     inputs:
       create_release:
