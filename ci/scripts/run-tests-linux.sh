@@ -7,6 +7,7 @@ PG_VERSION=${PG_VERSION:-15}
 RUN_TESTS=${RUN_TESTS:-1}
 
 export PGDATA=/etc/postgresql/$PG_VERSION/main
+PG_PID=0
 
 function wait_for_pg(){
  tries=0
@@ -49,9 +50,9 @@ function run_db_tests(){
     make test && \
     make test-client && \
     run_pgvector_tests
-    pg_pid=$(fuser -a 5432/tcp 2>/dev/null | awk "{print $1}" | awk '{$1=$1};1')
-    if [[ ! -z "$pg_pid" ]]; then
-      kill -9 $pg_pid
+    if [[ "$PG_PID" -ne "0" ]]; then
+      kill -9 $PG_PID
+      PG_PID=0
     fi
     gcovr -r $WORKDIR/src/ --object-directory $WORKDIR/build/ --xml /tmp/coverage.xml
   fi
@@ -78,6 +79,7 @@ function start_pg() {
     echo "port = 5432" >> ${PGDATA}/postgresql.conf
     # Run postgres database
     GCOV_PREFIX=$WORKDIR/build/CMakeFiles/lantern.dir/ GCOV_PREFIX_STRIP=5 POSTGRES_HOST_AUTH_METHOD=trust /usr/lib/postgresql/$PG_VERSION/bin/postgres 1>/tmp/pg-out.log 2>/tmp/pg-error.log &
+    PG_PID=$!
   fi
 }
 # Wait for start and run tests
