@@ -85,6 +85,7 @@ function start_pg() {
   fi
 }
 # Wait for start and run tests
+cd /tmp
 start_pg && wait_for_pg && run_db_tests
 
 if [[ "$RUN_REPLICA_TESTS" == "1" ]]
