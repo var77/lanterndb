@@ -7,8 +7,11 @@ PG_VERSION=${PG_VERSION:-15}
 RUN_TESTS=${RUN_TESTS:-1}
 
 export PGDATA=/etc/postgresql/$PG_VERSION/main
-PG_PID=0
 
+function stop_current_postgres() {
+  # Stop any existing processes
+  /usr/lib/postgresql/$PG_VERSION/bin/pg_ctl stop -D $PGDATA || true
+}
 function wait_for_pg(){
  tries=0
  until pg_isready -U postgres 2>/dev/null; do
@@ -50,17 +53,15 @@ function run_db_tests(){
     make test && \
     make test-client && \
     run_pgvector_tests
-    if [[ "$PG_PID" -ne "0" ]]; then
-      kill -9 $PG_PID
-      PG_PID=0
-    fi
+
+    stop_current_postgres && \
     gcovr -r $WORKDIR/src/ --object-directory $WORKDIR/build/ --xml /tmp/coverage.xml
   fi
 }
 
 function start_pg() {
   pg_response=$(pg_isready -U postgres 2>&1)
-  echo "STARTING POSTGRES, PID: $PG_PID  pg_response $pg_response"
+  echo "STARTING POSTGRES, PGDATA: ${PGDATA} , pg_response $pg_response"
 
   if [[ $pg_response == *"accepting"* ]]; then
     echo "Postgres already running"
@@ -69,7 +70,6 @@ function start_pg() {
     sleep 1
     start_pg
   else
-    echo "port = 5432" >> ${PGDATA}/postgresql.conf
     # Enable auth without password
     echo "local   all             all                                     trust" >  $PGDATA/pg_hba.conf
     echo "host    all             all             127.0.0.1/32            trust" >>  $PGDATA/pg_hba.conf
@@ -79,9 +79,8 @@ function start_pg() {
     # Set port
     echo "port = 5432" >> ${PGDATA}/postgresql.conf
     # Run postgres database
+    stop_current_postgres && \
     GCOV_PREFIX=$WORKDIR/build/CMakeFiles/lantern.dir/ GCOV_PREFIX_STRIP=5 POSTGRES_HOST_AUTH_METHOD=trust /usr/lib/postgresql/$PG_VERSION/bin/postgres 1>/tmp/pg-out.log 2>/tmp/pg-error.log &
-    PG_PID=$!
-    echo "STARTED POSTGRES, PID: $PG_PID"
   fi
 }
 # Wait for start and run tests
