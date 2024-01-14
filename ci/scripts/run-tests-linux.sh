@@ -60,6 +60,7 @@ function run_db_tests(){
 
 function start_pg() {
   pg_response=$(pg_isready -U postgres 2>&1)
+  echo "STARTING POSTGRES, PID: $PG_PID  pg_response $pg_response"
 
   if [[ $pg_response == *"accepting"* ]]; then
     echo "Postgres already running"
@@ -80,6 +81,7 @@ function start_pg() {
     # Run postgres database
     GCOV_PREFIX=$WORKDIR/build/CMakeFiles/lantern.dir/ GCOV_PREFIX_STRIP=5 POSTGRES_HOST_AUTH_METHOD=trust /usr/lib/postgresql/$PG_VERSION/bin/postgres 1>/tmp/pg-out.log 2>/tmp/pg-error.log &
     PG_PID=$!
+    echo "STARTED POSTGRES, PID: $PG_PID"
   fi
 }
 # Wait for start and run tests
